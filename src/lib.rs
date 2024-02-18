@@ -3,15 +3,21 @@
 #[macro_use]
 extern crate tracing;
 
-use hyper::header::{HeaderMap, HeaderName, HeaderValue, HOST};
-use hyper::http::header::{InvalidHeaderValue, ToStrError};
-use hyper::http::uri::InvalidUri;
-use hyper::upgrade::OnUpgrade;
-use hyper::{Body, Client, Error, Request, Response, StatusCode};
+use hyper::{
+    header::{HeaderMap, HeaderName, HeaderValue, HOST},
+    http::{
+        header::{InvalidHeaderValue, ToStrError},
+        uri::InvalidUri,
+    },
+    upgrade::OnUpgrade,
+    Body, Client, Error, Request, Response, StatusCode,
+};
 use lazy_static::lazy_static;
-use std::error::Error as StdError;
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::net::IpAddr;
+use std::{
+    error::Error as StdError,
+    fmt::{Display, Formatter, Result as FmtResult},
+    net::IpAddr,
+};
 use tokio::io::copy_bidirectional;
 
 lazy_static! {

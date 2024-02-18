@@ -1,18 +1,18 @@
-use hyper::client::connect::dns::GaiResolver;
-use hyper::client::HttpConnector;
-use hyper::header::{CONNECTION, UPGRADE};
-use hyper::server::conn::AddrStream;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Client, Request, Response, Server, StatusCode, Uri};
+use hyper::{
+    client::{connect::dns::GaiResolver, HttpConnector},
+    header::{CONNECTION, UPGRADE},
+    server::conn::AddrStream,
+    service::{make_service_fn, service_fn},
+    Body, Client, Request, Response, Server, StatusCode, Uri,
+};
 use hyper_reverse_proxy::ReverseProxy;
-use std::convert::Infallible;
-use std::net::{IpAddr, SocketAddr};
-use test_context::test_context;
-use test_context::AsyncTestContext;
-use tokio::sync::oneshot::Sender;
-use tokio::task::JoinHandle;
-use tokiotest_httpserver::handler::HandlerBuilder;
-use tokiotest_httpserver::{take_port, HttpTestContext};
+use std::{
+    convert::Infallible,
+    net::{IpAddr, SocketAddr},
+};
+use test_context::{test_context, AsyncTestContext};
+use tokio::{sync::oneshot::Sender, task::JoinHandle};
+use tokiotest_httpserver::{handler::HandlerBuilder, take_port, HttpTestContext};
 
 lazy_static::lazy_static! {
     static ref  PROXY_CLIENT: ReverseProxy<HttpConnector<GaiResolver>> = {

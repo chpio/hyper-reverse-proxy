@@ -1,15 +1,12 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hyper::client::connect::dns::GaiResolver;
-use hyper::client::HttpConnector;
-use hyper::header::HeaderName;
-use hyper::Uri;
-use hyper::{HeaderMap, Request, Response};
-use hyper_reverse_proxy::benches as internal_benches;
-use hyper_reverse_proxy::ReverseProxy;
-use rand::distributions::Alphanumeric;
-use rand::prelude::*;
-use std::net::Ipv4Addr;
-use std::str::FromStr;
+use hyper::{
+    client::{connect::dns::GaiResolver, HttpConnector},
+    header::HeaderName,
+    HeaderMap, Request, Response, Uri,
+};
+use hyper_reverse_proxy::{benches as internal_benches, ReverseProxy};
+use rand::{distributions::Alphanumeric, prelude::*};
+use std::{net::Ipv4Addr, str::FromStr};
 use test_context::AsyncTestContext;
 use tokio::runtime::Runtime;
 use tokiotest_httpserver::HttpTestContext;
