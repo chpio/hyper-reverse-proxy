@@ -1,10 +1,13 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use hyper::{
-    client::{connect::dns::GaiResolver, HttpConnector},
-    header::HeaderName,
-    HeaderMap, Request, Response, Uri,
+use hyper::{header::HeaderName, HeaderMap, Request, Response, Uri};
+use hyper_reverse_proxy::{benches as internal_benches, call};
+use hyper_util::{
+    client::legacy::{
+        connect::{dns::GaiResolver, HttpConnector},
+        Client,
+    },
+    rt::TokioExecutor,
 };
-use hyper_reverse_proxy::{benches as internal_benches, ReverseProxy};
 use rand::{distributions::Alphanumeric, prelude::*};
 use std::{net::Ipv4Addr, str::FromStr};
 use test_context::AsyncTestContext;
@@ -12,10 +15,8 @@ use tokio::runtime::Runtime;
 use tokiotest_httpserver::HttpTestContext;
 
 lazy_static::lazy_static! {
-    static ref  PROXY_CLIENT: ReverseProxy<HttpConnector<GaiResolver>> = {
-        ReverseProxy::new(
-            hyper::Client::new(),
-        )
+    static ref PROXY_CLIENT: Client<HttpConnector<GaiResolver>, String> = {
+        Client::builder(TokioExecutor::new()).build_http()
     };
 }
 
@@ -83,14 +84,14 @@ fn proxy_call(b: &mut Criterion) {
 
                 *request.headers_mut().unwrap() = headers_map.clone();
 
-                black_box(&PROXY_CLIENT)
-                    .call(
-                        black_box(client_ip),
-                        black_box(forward_url),
-                        black_box(request.body(hyper::Body::from("")).unwrap()),
-                    )
-                    .await
-                    .unwrap();
+                call(
+                    black_box(client_ip),
+                    black_box(forward_url),
+                    black_box(request.body(String::new()).unwrap()),
+                    &PROXY_CLIENT,
+                )
+                .await
+                .unwrap();
             })
         })
     });

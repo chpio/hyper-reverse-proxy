@@ -14,7 +14,7 @@ repository = "https://github.com/felipenoris/hyper-reverse-proxy"
 keywords = ["http", "hyper"]
 categories = ["network-programming", "web-programming"]
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 
 include = ["Cargo.toml", "LICENSE", "src/**/*"]
 
@@ -23,29 +23,36 @@ name="internal"
 harness = false
 
 [dependencies]
-hyper = { version = "0.14.18", features = ["client"] }
+hyper = { version = "1", features = ["client"] }
+hyper-util = { version = "0.1", features = ["tokio", "client", "client-legacy", "http1", "http2"] }
+# "http1", "http2"]
 lazy_static = "1.4.0"
 tokio = { version = "1.17.0", features = ["io-util", "rt"] }
 tracing = "0.1.34"
 
 [dev-dependencies]
-hyper = { version = "0.14.18", features = ["server"] }
+hyper = { version = "1", features = ["client", "server"] }
+hyper014 = { package = "hyper", version = "0.14", features = ["server"] }
 futures = "0.3.21"
 async-trait = "0.1.53"
-async-tungstenite = { version = "0.17", features = ["tokio-runtime"] }
+async-tungstenite = { version = "0.25", features = ["tokio-runtime"] }
 tokio-test = "0.4.2"
 test-context = "0.1.3"
 tokiotest-httpserver = "0.2.1"
-hyper-trust-dns = { version = "0.4.2", features = [
+hyper-trust-dns = { version = "0.5", features = [
   "rustls-http2",
   "dnssec-ring",
   "dns-over-https-rustls",
   "rustls-webpki"
 ] }
 rand = "0.8.5"
-tungstenite = "0.17"
+tungstenite = "0.21"
 url = "2.2"
-criterion = "0.3.5"
+criterion = "0.5"
+http-body-util = "0.1"
+tokio-stream = { version = "0.1.15", features = ["net"] }
+tokio = { version = "1.17.0", features = ["io-util", "rt", "time"] }
+# http02 = { package = "http", version = "0.2" }
 
 [features]
 

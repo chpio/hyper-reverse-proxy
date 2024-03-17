@@ -4,14 +4,16 @@
 extern crate tracing;
 
 use hyper::{
+    body,
     header::{HeaderMap, HeaderName, HeaderValue, HOST},
     http::{
         header::{InvalidHeaderValue, ToStrError},
         uri::InvalidUri,
     },
     upgrade::OnUpgrade,
-    Body, Client, Error, Request, Response, StatusCode,
+    Error, Request, Response, StatusCode,
 };
+use hyper_util::{client::legacy::Client, rt::tokio::TokioIo};
 use lazy_static::lazy_static;
 use std::{
     error::Error as StdError,
@@ -44,6 +46,7 @@ lazy_static! {
 
 #[derive(Debug)]
 pub enum ProxyError {
+    ClientError(Box<dyn StdError + Send + Sync>),
     InvalidUri(InvalidUri),
     HyperError(Error),
     ForwardHeaderError,
@@ -53,6 +56,7 @@ pub enum ProxyError {
 impl Display for ProxyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
+            ProxyError::ClientError(err) => write!(f, "ClientError: {err}"),
             ProxyError::InvalidUri(err) => write!(f, "InvalidUri: {err}"),
             ProxyError::HyperError(err) => write!(f, "HyperError: {err}"),
             ProxyError::ForwardHeaderError => write!(f, "ForwardHeaderError"),
@@ -64,6 +68,7 @@ impl Display for ProxyError {
 impl StdError for ProxyError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
+            ProxyError::ClientError(err) => err.source(),
             ProxyError::InvalidUri(err) => Some(err),
             ProxyError::HyperError(err) => Some(err),
             ProxyError::ForwardHeaderError => None,
@@ -308,12 +313,18 @@ fn create_proxied_request<B>(
     Ok(request)
 }
 
-pub async fn call<'a, T: hyper::client::connect::Connect + Clone + Send + Sync + 'static>(
+pub async fn call<'a, C, B>(
     client_ip: IpAddr,
     forward_uri: &str,
-    mut request: Request<Body>,
-    client: &'a Client<T>,
-) -> Result<Response<Body>, ProxyError> {
+    mut request: Request<B>,
+    client: &'a Client<C, B>,
+) -> Result<Response<body::Incoming>, ProxyError>
+where
+    C: hyper_util::client::legacy::connect::Connect + Clone + Send + Sync + 'static,
+    B: body::Body + Send + 'static + Unpin,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
     info!(
         "Received proxy call from {} to {}, client: {}",
         request.uri().to_string(),
@@ -330,14 +341,17 @@ pub async fn call<'a, T: hyper::client::connect::Connect + Clone + Send + Sync +
         request,
         request_upgrade_type.as_ref(),
     )?;
-    let mut response = client.request(proxied_request).await?;
+    let mut response = client
+        .request(proxied_request)
+        .await
+        .map_err(|err| ProxyError::ClientError(Box::new(err)))?;
 
     if response.status() == StatusCode::SWITCHING_PROTOCOLS {
         let response_upgrade_type = get_upgrade_type(response.headers());
 
         if request_upgrade_type == response_upgrade_type {
             if let Some(request_upgraded) = request_upgraded {
-                let mut response_upgraded = response
+                let response_upgraded = response
                     .extensions_mut()
                     .remove::<OnUpgrade>()
                     .expect("response does not have an upgrade extension")
@@ -346,12 +360,15 @@ pub async fn call<'a, T: hyper::client::connect::Connect + Clone + Send + Sync +
                 debug!("Responding to a connection upgrade response");
 
                 tokio::spawn(async move {
-                    let mut request_upgraded =
+                    let request_upgraded =
                         request_upgraded.await.expect("failed to upgrade request");
 
-                    copy_bidirectional(&mut response_upgraded, &mut request_upgraded)
-                        .await
-                        .expect("coping between upgraded connections failed");
+                    copy_bidirectional(
+                        &mut TokioIo::new(response_upgraded),
+                        &mut TokioIo::new(request_upgraded),
+                    )
+                    .await
+                    .expect("coping between upgraded connections failed");
                 });
 
                 Ok(response)
@@ -371,25 +388,6 @@ pub async fn call<'a, T: hyper::client::connect::Connect + Clone + Send + Sync +
 
         debug!("Responding to call with response");
         Ok(proxied_response)
-    }
-}
-
-pub struct ReverseProxy<T: hyper::client::connect::Connect + Clone + Send + Sync + 'static> {
-    client: Client<T>,
-}
-
-impl<T: hyper::client::connect::Connect + Clone + Send + Sync + 'static> ReverseProxy<T> {
-    pub fn new(client: Client<T>) -> Self {
-        Self { client }
-    }
-
-    pub async fn call(
-        &self,
-        client_ip: IpAddr,
-        forward_uri: &str,
-        request: Request<Body>,
-    ) -> Result<Response<Body>, ProxyError> {
-        call::<T>(client_ip, forward_uri, request, &self.client).await
     }
 }
 
