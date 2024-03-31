@@ -21,11 +21,11 @@ use std::{
 };
 use tokio::io::copy_bidirectional;
 
-const TRAILERS_HEADER: HeaderName = HeaderName::from_static("trailers");
-const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
+static TRAILERS_HEADER: HeaderName = HeaderName::from_static("trailers");
+static X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
 
 // A list of the headers, using hypers actual HeaderName comparison
-const HOP_HEADERS: [HeaderName; 9] = [
+static HOP_HEADERS: [HeaderName; 9] = [
     header::CONNECTION,
     header::TE,
     header::TRAILER,
@@ -97,13 +97,13 @@ impl From<InvalidHeaderValue> for ProxyError {
 fn remove_hop_headers(headers: &mut HeaderMap) {
     debug!("Removing hop headers");
 
-    for header in HOP_HEADERS {
+    for header in HOP_HEADERS.iter() {
         headers.remove(header);
     }
 }
 
 fn get_upgrade_type(headers: &HeaderMap) -> Option<String> {
-    #[allow(clippy::blocks_in_if_conditions)]
+    #[allow(clippy::blocks_in_conditions)]
     if headers
         .get(header::CONNECTION)
         .map(|value| {
@@ -156,7 +156,7 @@ fn forward_uri<B>(forward_url: &str, req: &Request<B>) -> String {
 
     let split_url = forward_url.split('?').collect::<Vec<&str>>();
 
-    let mut base_url: &str = split_url.get(0).unwrap_or(&"");
+    let mut base_url: &str = split_url.first().unwrap_or(&"");
     let forward_url_query: &str = split_url.get(1).unwrap_or(&"");
 
     let path2 = req.uri().path();
@@ -282,7 +282,7 @@ fn create_proxied_request<B>(
     }
 
     // Add forwarding information in the headers
-    match request.headers_mut().entry(X_FORWARDED_FOR) {
+    match request.headers_mut().entry(&X_FORWARDED_FOR) {
         hyper::header::Entry::Vacant(entry) => {
             debug!("X-Fowraded-for header was vacant");
             entry.insert(client_ip.to_string().parse()?);
@@ -386,7 +386,7 @@ where
 
 #[cfg(feature = "__bench")]
 pub mod benches {
-    pub static HOP_HEADERS: [crate::HeaderName; 9] = super::HOP_HEADERS;
+    pub static HOP_HEADERS: &[crate::HeaderName; 9] = &super::HOP_HEADERS;
 
     pub fn create_proxied_response<T>(response: crate::Response<T>) {
         super::create_proxied_response(response);
