@@ -5,7 +5,7 @@ extern crate tracing;
 
 use hyper::{
     body,
-    header::{HeaderMap, HeaderName, HeaderValue, HOST},
+    header::{self, HeaderMap, HeaderName, HeaderValue, HOST},
     http::{
         header::{InvalidHeaderValue, ToStrError},
         uri::InvalidUri,
@@ -14,7 +14,6 @@ use hyper::{
     Error, Request, Response, StatusCode,
 };
 use hyper_util::{client::legacy::Client, rt::tokio::TokioIo};
-use lazy_static::lazy_static;
 use std::{
     error::Error as StdError,
     fmt::{Display, Formatter, Result as FmtResult},
@@ -22,27 +21,21 @@ use std::{
 };
 use tokio::io::copy_bidirectional;
 
-lazy_static! {
-    static ref TE_HEADER: HeaderName = HeaderName::from_static("te");
-    static ref CONNECTION_HEADER: HeaderName = HeaderName::from_static("connection");
-    static ref UPGRADE_HEADER: HeaderName = HeaderName::from_static("upgrade");
-    static ref TRAILER_HEADER: HeaderName = HeaderName::from_static("trailer");
-    static ref TRAILERS_HEADER: HeaderName = HeaderName::from_static("trailers");
-    // A list of the headers, using hypers actual HeaderName comparison
-    static ref HOP_HEADERS: [HeaderName; 9] = [
-        CONNECTION_HEADER.clone(),
-        TE_HEADER.clone(),
-        TRAILER_HEADER.clone(),
-        HeaderName::from_static("keep-alive"),
-        HeaderName::from_static("proxy-connection"),
-        HeaderName::from_static("proxy-authenticate"),
-        HeaderName::from_static("proxy-authorization"),
-        HeaderName::from_static("transfer-encoding"),
-        HeaderName::from_static("upgrade"),
-    ];
+const TRAILERS_HEADER: HeaderName = HeaderName::from_static("trailers");
+const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
 
-    static ref X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
-}
+// A list of the headers, using hypers actual HeaderName comparison
+const HOP_HEADERS: [HeaderName; 9] = [
+    header::CONNECTION,
+    header::TE,
+    header::TRAILER,
+    HeaderName::from_static("keep-alive"),
+    HeaderName::from_static("proxy-connection"),
+    header::PROXY_AUTHENTICATE,
+    header::PROXY_AUTHORIZATION,
+    header::TRANSFER_ENCODING,
+    header::UPGRADE,
+];
 
 #[derive(Debug)]
 pub enum ProxyError {
@@ -104,7 +97,7 @@ impl From<InvalidHeaderValue> for ProxyError {
 fn remove_hop_headers(headers: &mut HeaderMap) {
     debug!("Removing hop headers");
 
-    for header in &*HOP_HEADERS {
+    for header in HOP_HEADERS {
         headers.remove(header);
     }
 }
@@ -112,17 +105,17 @@ fn remove_hop_headers(headers: &mut HeaderMap) {
 fn get_upgrade_type(headers: &HeaderMap) -> Option<String> {
     #[allow(clippy::blocks_in_if_conditions)]
     if headers
-        .get(&*CONNECTION_HEADER)
+        .get(header::CONNECTION)
         .map(|value| {
             value
                 .to_str()
                 .unwrap()
                 .split(',')
-                .any(|e| e.trim() == *UPGRADE_HEADER)
+                .any(|e| e.trim() == header::UPGRADE)
         })
         .unwrap_or(false)
     {
-        if let Some(upgrade_value) = headers.get(&*UPGRADE_HEADER) {
+        if let Some(upgrade_value) = headers.get(header::UPGRADE) {
             debug!(
                 "Found upgrade header with value: {}",
                 upgrade_value.to_str().unwrap().to_owned()
@@ -136,10 +129,10 @@ fn get_upgrade_type(headers: &HeaderMap) -> Option<String> {
 }
 
 fn remove_connection_headers(headers: &mut HeaderMap) {
-    if headers.get(&*CONNECTION_HEADER).is_some() {
+    if headers.get(header::CONNECTION).is_some() {
         debug!("Removing connection headers");
 
-        let value = headers.get(&*CONNECTION_HEADER).cloned().unwrap();
+        let value = headers.get(header::CONNECTION).cloned().unwrap();
 
         for name in value.to_str().unwrap().split(',') {
             if !name.trim().is_empty() {
@@ -246,13 +239,13 @@ fn create_proxied_request<B>(
 
     let contains_te_trailers_value = request
         .headers()
-        .get(&*TE_HEADER)
+        .get(header::TE)
         .map(|value| {
             value
                 .to_str()
                 .unwrap()
                 .split(',')
-                .any(|e| e.trim() == *TRAILERS_HEADER)
+                .any(|e| e.trim() == TRAILERS_HEADER)
         })
         .unwrap_or(false);
 
@@ -274,7 +267,7 @@ fn create_proxied_request<B>(
 
         request
             .headers_mut()
-            .insert(&*TE_HEADER, HeaderValue::from_static("trailers"));
+            .insert(header::TE, HeaderValue::from_static("trailers"));
     }
 
     if let Some(value) = upgrade_type {
@@ -282,14 +275,14 @@ fn create_proxied_request<B>(
 
         request
             .headers_mut()
-            .insert(&*UPGRADE_HEADER, value.parse().unwrap());
+            .insert(header::UPGRADE, value.parse().unwrap());
         request
             .headers_mut()
-            .insert(&*CONNECTION_HEADER, HeaderValue::from_static("UPGRADE"));
+            .insert(header::CONNECTION, HeaderValue::from_static("UPGRADE"));
     }
 
     // Add forwarding information in the headers
-    match request.headers_mut().entry(&*X_FORWARDED_FOR) {
+    match request.headers_mut().entry(X_FORWARDED_FOR) {
         hyper::header::Entry::Vacant(entry) => {
             debug!("X-Fowraded-for header was vacant");
             entry.insert(client_ip.to_string().parse()?);

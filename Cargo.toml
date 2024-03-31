@@ -25,12 +25,11 @@ harness = false
 [dependencies]
 hyper = { version = "1", features = ["client"] }
 hyper-util = { version = "0.1", features = ["tokio", "client", "client-legacy", "http1", "http2"] }
-# "http1", "http2"]
-lazy_static = "1.4.0"
 tokio = { version = "1.17.0", features = ["io-util", "rt"] }
 tracing = "0.1.34"
 
 [dev-dependencies]
+lazy_static = "1.4.0"
 hyper = { version = "1", features = ["client", "server"] }
 hyper014 = { package = "hyper", version = "0.14", features = ["server"] }
 futures = "0.3.21"
