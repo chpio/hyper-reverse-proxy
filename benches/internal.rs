@@ -44,9 +44,9 @@ fn generate_string() -> String {
 }
 
 fn build_headers() -> HeaderMap {
-    let mut headers_map: HeaderMap = (&*internal_benches::hop_headers())
+    let mut headers_map: HeaderMap = internal_benches::HOP_HEADERS
         .iter()
-        .map(|el: &'static HeaderName| (el.clone(), generate_string().parse().unwrap()))
+        .map(|el: &HeaderName| (el.clone(), generate_string().parse().unwrap()))
         .collect();
 
     for _i in 0..20 {

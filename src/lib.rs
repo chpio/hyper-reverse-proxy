@@ -142,7 +142,7 @@ fn remove_connection_headers(headers: &mut HeaderMap) {
     }
 }
 
-fn create_proxied_response<B>(mut response: Response<B>) -> Response<B> {
+pub fn create_proxied_response<B>(mut response: Response<B>) -> Response<B> {
     info!("Creating proxied response");
 
     remove_hop_headers(response.headers_mut());
@@ -386,9 +386,7 @@ where
 
 #[cfg(feature = "__bench")]
 pub mod benches {
-    pub fn hop_headers() -> &'static [crate::HeaderName] {
-        &*super::HOP_HEADERS
-    }
+    pub static HOP_HEADERS: [crate::HeaderName; 9] = super::HOP_HEADERS;
 
     pub fn create_proxied_response<T>(response: crate::Response<T>) {
         super::create_proxied_response(response);
