@@ -97,12 +97,14 @@ impl<'a> AsyncTestContext for ProxyTestContext {
             http_back,
         }
     }
+
     async fn teardown(self) {
-        let _ = AsyncTestContext::teardown(self.http_back);
-        let _ = self.shutdown_tx.send(()).unwrap();
-        let _ = tokio::join!(self.proxy_handle);
+        AsyncTestContext::teardown(self.http_back).await;
+        self.shutdown_tx.send(()).unwrap();
+        self.proxy_handle.await.unwrap();
     }
 }
+
 impl ProxyTestContext {
     pub fn uri(&self, path: &str) -> Uri {
         format!("http://{}:{}{}", "localhost", self.port, path)
